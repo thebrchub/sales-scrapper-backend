@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/shivanand-burli/go-starter-kit/helper"
@@ -53,6 +54,7 @@ func (h *CampaignHandler) CreateCampaign(w http.ResponseWriter, r *http.Request)
 
 	campaign, err := h.campaignSvc.Create(r.Context(), c)
 	if err != nil {
+		log.Printf("ERROR [campaign] - create failed error=%s", err)
 		helper.Error(w, http.StatusInternalServerError, "failed to create campaign")
 		return
 	}
