@@ -23,11 +23,8 @@ type loginRequest struct {
 	Password string `json:"password"`
 }
 
-func NewAuthHandler(serviceUser, servicePass, adminUser, adminPass string) *AuthHandler {
+func NewAuthHandler(adminUser, adminPass string) *AuthHandler {
 	users := map[string]authUser{}
-	if serviceUser != "" {
-		users[serviceUser] = authUser{Password: servicePass, Role: "service"}
-	}
 	if adminUser != "" {
 		users[adminUser] = authUser{Password: adminPass, Role: "admin"}
 	}

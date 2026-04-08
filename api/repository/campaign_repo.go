@@ -28,7 +28,7 @@ func (r *CampaignRepo) Insert(ctx context.Context, c models.Campaign) (string, e
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW(),NOW())`,
 		c.ID, c.Name, c.Sources, c.Cities, c.Categories, c.Status, c.AutoRescrape, c.JobsTotal, c.JobsCompleted, c.LeadsFound)
 	if err == nil {
-		redis.Remove(ctx, "campaigns:list:version")
+		r.invalidateListCache(ctx)
 	}
 	return c.ID, err
 }
@@ -96,7 +96,7 @@ func (r *CampaignRepo) IncrementLeads(ctx context.Context, id string, count int)
 	_, err := postgress.Exec(ctx, "UPDATE campaigns SET leads_found = leads_found + $1, updated_at = NOW() WHERE id = $2", count, id)
 	if err == nil {
 		redis.Remove(ctx, "campaign:"+id)
-		redis.Remove(ctx, "campaigns:list:version")
+		r.invalidateListCache(ctx)
 	}
 	return err
 }
@@ -105,7 +105,7 @@ func (r *CampaignRepo) IncrementJobsCompleted(ctx context.Context, id string) er
 	_, err := postgress.Exec(ctx, "UPDATE campaigns SET jobs_completed = jobs_completed + 1, updated_at = NOW() WHERE id = $1", id)
 	if err == nil {
 		redis.Remove(ctx, "campaign:"+id)
-		redis.Remove(ctx, "campaigns:list:version")
+		r.invalidateListCache(ctx)
 	}
 	return err
 }
@@ -117,11 +117,20 @@ func (r *CampaignRepo) IncrementOnJobComplete(ctx context.Context, id string, le
 		leadsFound, id)
 	if err == nil {
 		redis.Remove(ctx, "campaign:"+id)
-		redis.Remove(ctx, "campaigns:list:version")
+		r.invalidateListCache(ctx)
 	}
 	return err
 }
 
 func (r *CampaignRepo) GetAutoRescrape(ctx context.Context) ([]models.Campaign, error) {
 	return postgress.Query[models.Campaign](ctx, "SELECT * FROM campaigns WHERE auto_rescrape = true AND status = 'active'")
+}
+
+// invalidateListCache removes all cached campaign list pages.
+func (r *CampaignRepo) invalidateListCache(ctx context.Context) {
+	client := redis.GetRawClient()
+	iter := client.Scan(ctx, 0, "sales:campaigns:list:*", 100).Iterator()
+	for iter.Next(ctx) {
+		client.Del(ctx, iter.Val())
+	}
 }

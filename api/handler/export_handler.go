@@ -36,7 +36,7 @@ func (h *ExportHandler) ExportCSV(w http.ResponseWriter, r *http.Request) {
 
 	// Header row
 	writer.Write([]string{
-		"ID", "Business Name", "Category", "Phone", "Phone Valid",
+		"Business Name", "Category", "Phone", "Phone Valid",
 		"Email", "Email Valid", "Website", "Domain", "City", "Country",
 		"Score", "Status", "Sources",
 	})
@@ -55,7 +55,7 @@ func (h *ExportHandler) ExportCSV(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Printf("ERROR [export] - fetch leads failed page=%d error=%s", page, err)
 			// Write error marker row so the client knows the CSV is incomplete
-			writer.Write([]string{"ERROR", "Export incomplete — server error during data fetch", "", "", "", "", "", "", "", "", "", "", "", ""})
+			writer.Write([]string{"ERROR", "Export incomplete — server error during data fetch", "", "", "", "", "", "", "", "", "", "", ""})
 			writer.Flush()
 			return
 		}
@@ -89,7 +89,6 @@ func (h *ExportHandler) ExportCSV(w http.ResponseWriter, r *http.Request) {
 			}
 
 			writer.Write([]string{
-				l.ID,
 				l.BusinessName,
 				l.Category,
 				phone,

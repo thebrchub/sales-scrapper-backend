@@ -29,6 +29,9 @@ func (r *LeadRepo) Insert(ctx context.Context, lead models.Lead) (string, error)
 		lead.Email, lead.EmailValid, lead.EmailCatchall, lead.EmailDisposable, lead.EmailConfidence,
 		lead.WebsiteURL, lead.WebsiteDomain, lead.Address, lead.City, lead.Country, lead.Source,
 		lead.LeadScore, lead.TechStack, lead.HasSSL, lead.IsMobileFriendly, lead.Status)
+	if err == nil {
+		r.invalidateFilterCache(ctx)
+	}
 	return lead.ID, err
 }
 
@@ -197,7 +200,11 @@ func (r *LeadRepo) MergeSources(ctx context.Context, id string, newSources []str
 	return err
 }
 
-// invalidateFilterCache removes the filter cache version key so all filter queries re-fetch.
+// invalidateFilterCache removes all cached filter query results.
 func (r *LeadRepo) invalidateFilterCache(ctx context.Context) {
-	redis.Remove(ctx, "leads:filter:version")
+	client := redis.GetRawClient()
+	iter := client.Scan(ctx, 0, "sales:leads:filter:*", 100).Iterator()
+	for iter.Next(ctx) {
+		client.Del(ctx, iter.Val())
+	}
 }

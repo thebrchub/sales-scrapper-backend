@@ -56,8 +56,8 @@ func main() {
 	ctx := context.Background()
 	fmt.Fprintln(os.Stderr, "=== CONFIG LOADED ===")
 
-	if cfg.ServicePass == "" || cfg.AdminPass == "" {
-		fatal("ERROR [api] - SERVICE_PASS and ADMIN_PASS must be set")
+	if cfg.AdminPass == "" {
+		fatal("ERROR [api] - ADMIN_PASS must be set")
 	}
 
 	helper.TuneMemory(cfg.MemoryLimitMB)
@@ -99,7 +99,7 @@ func main() {
 	campaignSvc := service.NewCampaignService(campaignRepo, jobRepo, cfg)
 
 	// Handlers
-	authH := handler.NewAuthHandler(cfg.ServiceUser, cfg.ServicePass, cfg.AdminUser, cfg.AdminPass)
+	authH := handler.NewAuthHandler(cfg.AdminUser, cfg.AdminPass)
 	leadH := handler.NewLeadHandler(leadRepo)
 	campaignH := handler.NewCampaignHandler(campaignSvc)
 	exportH := handler.NewExportHandler(leadRepo, cfg.ExportMaxRows)
@@ -112,7 +112,7 @@ func main() {
 	watchdog := apicron.NewWatchdog(jobRepo, cfg)
 	rescrape := apicron.NewRescrape(campaignRepo, jobRepo, cfg)
 	emailVal := apicron.NewEmailValidator()
-	leadRecovery := apicron.NewLeadRecovery(leadSvc, jobRepo, campaignRepo)
+	leadRecovery := apicron.NewLeadRecovery(leadSvc, jobRepo, campaignRepo, cfg.DrainBatchSize)
 
 	scheduler := cron.NewScheduler(cron.Config{})
 	scheduler.Register("watchdog", time.Duration(cfg.WatchdogIntervalSec)*time.Second, func(ctx context.Context) {

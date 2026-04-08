@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"github.com/shivanand-burli/go-starter-kit/postgress"
+	"github.com/shivanand-burli/go-starter-kit/redis"
 
 	"sales-scrapper-backend/api/service"
 )
@@ -72,6 +73,8 @@ func (e *EmailValidator) Run(ctx context.Context) {
 			valid, catchAll, conf, lead.ID)
 		if err != nil {
 			log.Printf("ERROR [email-validator] - update lead=%s failed error=%s", lead.ID, err)
+		} else {
+			redis.Remove(ctx, "lead:"+lead.ID)
 		}
 	}
 }
