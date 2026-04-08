@@ -8,10 +8,6 @@ function envInt(key: string, fallback: number): number {
 }
 
 export const config = {
-  apiBaseUrl: env("API_BASE_URL", "http://localhost:8080"),
-  serviceUser: env("SERVICE_USER", "scraper"),
-  servicePass: env("SERVICE_PASS", ""),
-
   redisUrl: env("REDIS_URL", ""),
   redisHost: env("REDIS_HOST", "localhost"),
   redisPort: envInt("REDIS_PORT", 6379),

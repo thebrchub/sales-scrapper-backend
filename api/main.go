@@ -102,17 +102,17 @@ func main() {
 	authH := handler.NewAuthHandler(cfg.ServiceUser, cfg.ServicePass, cfg.AdminUser, cfg.AdminPass)
 	leadH := handler.NewLeadHandler(leadRepo)
 	campaignH := handler.NewCampaignHandler(campaignSvc)
-	internalH := handler.NewInternalHandler(leadSvc, jobRepo, campaignRepo)
 	exportH := handler.NewExportHandler(leadRepo, cfg.ExportMaxRows)
 	progressH := handler.NewProgressHandler()
 
 	// Router
-	mux, limiter := router.New(cfg, authH, leadH, campaignH, internalH, exportH, progressH)
+	mux, limiter := router.New(cfg, authH, leadH, campaignH, exportH, progressH)
 
 	// Cron scheduler
 	watchdog := apicron.NewWatchdog(jobRepo, cfg)
 	rescrape := apicron.NewRescrape(campaignRepo, jobRepo, cfg)
 	emailVal := apicron.NewEmailValidator()
+	leadRecovery := apicron.NewLeadRecovery(leadSvc, jobRepo, campaignRepo)
 
 	scheduler := cron.NewScheduler(cron.Config{})
 	scheduler.Register("watchdog", time.Duration(cfg.WatchdogIntervalSec)*time.Second, func(ctx context.Context) {
@@ -123,6 +123,9 @@ func main() {
 	})
 	scheduler.Register("email_validator", 5*time.Minute, func(ctx context.Context) {
 		emailVal.Run(ctx)
+	})
+	scheduler.Register("lead_recovery", 30*time.Second, func(ctx context.Context) {
+		leadRecovery.Run(ctx)
 	})
 	scheduler.Start()
 

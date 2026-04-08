@@ -1,6 +1,5 @@
 import { Redis } from "ioredis";
 import { config } from "./config.js";
-import { GoClient } from "./api/go-client.js";
 import { Runner } from "./worker/runner.js";
 import { log } from "./utils/logger.js";
 
@@ -24,12 +23,8 @@ async function main(): Promise<void> {
     target: config.redisUrl ? config.redisUrl.replace(/\/\/.*@/, "//***@") : `${config.redisHost}:${config.redisPort}`,
   });
 
-  // 2. Authenticate with Go API
-  const api = new GoClient();
-  await api.login();
-
-  // 3. Start worker loop
-  const runner = new Runner(redis, api);
+  // 2. Start worker loop (no HTTP — all communication via Redis)
+  const runner = new Runner(redis);
 
   // Graceful shutdown
   const shutdown = async (signal: string) => {

@@ -1,6 +1,5 @@
 import { Redis } from "ioredis";
 import { config } from "../config.js";
-import { GoClient } from "../api/go-client.js";
 import { listenForKill } from "./kill-listener.js";
 import { ScrapeJob } from "../types/job.js";
 import { BaseScraper } from "../scrapers/base.js";
@@ -28,12 +27,10 @@ const scraperMap: Record<string, BaseScraper> = {
 
 export class Runner {
   private redis: Redis;
-  private api: GoClient;
   private running = true;
 
-  constructor(redis: Redis, api: GoClient) {
+  constructor(redis: Redis) {
     this.redis = redis;
-    this.api = api;
   }
 
   /** Start the BLPOP worker loop. */
@@ -70,11 +67,17 @@ export class Runner {
     }
   }
 
+  /** Push a status update to Redis for Go to pick up. */
+  private async pushStatus(jobId: string, status: string, leadsFound: number, error?: string): Promise<void> {
+    const payload = JSON.stringify({ job_id: jobId, status, leads_found: leadsFound, ...(error ? { error } : {}) });
+    await this.redis.rpush(`${config.redisPrefix}:job_status`, payload);
+  }
+
   private async processJob(job: ScrapeJob, workerId: number): Promise<void> {
     const scraper = scraperMap[job.source];
     if (!scraper) {
       log.error("unknown source, skipping", { source: job.source, job_id: job.job_id });
-      await this.api.updateJobStatus(job.job_id, "failed", 0, `unknown source: ${job.source}`);
+      await this.pushStatus(job.job_id, "failed", 0, `unknown source: ${job.source}`);
       return;
     }
 
@@ -93,29 +96,29 @@ export class Runner {
     let totalLeads = 0;
 
     try {
-      // Notify Go API that job is in progress
-      await this.api.updateJobStatus(job.job_id, "in_progress", 0);
+      // Notify Go via Redis that job is in progress
+      await this.pushStatus(job.job_id, "in_progress", 0);
 
       // Run the scraper — it yields batches of leads
       for await (const batch of scraper.scrape(job, controller.signal)) {
         if (controller.signal.aborted) break;
 
-        // POST batch to Go API
-        const result = await this.api.submitLeads(job.job_id, batch);
-        totalLeads += result.inserted + result.merged;
+        // Push leads to Redis queue for Go to process
+        const payload = JSON.stringify({ job_id: job.job_id, leads: batch });
+        await this.redis.rpush(`${config.redisPrefix}:lead_batches`, payload);
+        totalLeads += batch.length;
+        log.info("leads pushed to Redis", { job_id: job.job_id, count: batch.length, total: totalLeads });
       }
 
       if (controller.signal.aborted) {
-        await this.api.updateJobStatus(job.job_id, "timeout", totalLeads);
+        await this.pushStatus(job.job_id, "timeout", totalLeads);
       } else {
-        await this.api.updateJobStatus(job.job_id, "completed", totalLeads);
+        await this.pushStatus(job.job_id, "completed", totalLeads);
       }
     } catch (err: any) {
-      const msg = err?.response?.data?.error || err?.message || String(err);
+      const msg = err?.message || String(err);
       log.error("job failed", { job_id: job.job_id, error: msg });
-      await this.api
-        .updateJobStatus(job.job_id, "failed", totalLeads, msg)
-        .catch(() => {});
+      await this.pushStatus(job.job_id, "failed", totalLeads, msg).catch(() => {});
     } finally {
       clearTimeout(timeout);
       cleanup();

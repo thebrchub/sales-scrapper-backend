@@ -14,10 +14,3 @@ export interface RawLead {
   is_mobile_friendly?: boolean | null;
   meta?: Record<string, string> | null;
 }
-
-/** What Go API returns from POST /internal/leads/batch */
-export interface LeadBatchResponse {
-  inserted: number;
-  merged: number;
-  skipped: number;
-}
