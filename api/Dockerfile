@@ -1,17 +1,24 @@
-FROM golang:1.24-alpine AS builder
-
-ARG GO_KIT_GITHUB_TOKEN
-RUN apk add --no-cache git
-RUN git config --global url."https://${GO_KIT_GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
-ENV GOPRIVATE=github.com/shivanand-burli/go-starter-kit
+FROM golang:1.26.1-alpine3.23 AS builder
 
 WORKDIR /app
+
+RUN apk add --no-cache git
+
+ARG GO_KIT_GITHUB_TOKEN
+RUN git config --global url."https://${GO_KIT_GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
+ENV GOPRIVATE=github.com/shivanand-burli/*
+
 COPY go.mod go.sum ./
 RUN go mod download
+
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -o /api .
+RUN CGO_ENABLED=0 \
+    GOOS=linux \
+    GOARCH=amd64 \
+    go build -trimpath -ldflags="-s -w" -o app
 
 FROM gcr.io/distroless/static-debian12
-COPY --from=builder /api /api
+WORKDIR /app
+COPY --from=builder /app/app /app/app
 EXPOSE 8080
-ENTRYPOINT ["/api"]
+CMD ["/app/app"]
