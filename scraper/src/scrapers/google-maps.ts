@@ -123,7 +123,7 @@ export class GoogleMapsScraper extends BaseScraper {
 
         // Extract phone from text
         const phoneMatch = text.match(
-          /(?:\+?\d{1,3}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,4}/
+          /(?:\+?\d{1,3}[-.\s]?)?\(?\d{2,5}\)?[-.\s]?\d{3,5}[-.\s]?\d{3,5}[-.\s]?\d{0,4}/
         );
 
         // Extract website URL
@@ -149,7 +149,7 @@ export class GoogleMapsScraper extends BaseScraper {
           website_url: websiteUrl,
           address,
           city,
-          country: "US", // TODO: detect from location
+          country: null, // detected by Go API from city
           category,
           source,
           tech_stack: null,

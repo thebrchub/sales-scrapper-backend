@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"log"
+	"net/url"
 	"strings"
 
 	"sales-scrapper-backend/api/models"
@@ -38,7 +39,11 @@ func (s *LeadService) ProcessBatch(ctx context.Context, jobID string, rawLeads [
 		// Normalize email
 		email := ""
 		if raw.Email != nil {
-			email = strings.TrimSpace(strings.ToLower(*raw.Email))
+			e := strings.TrimSpace(strings.ToLower(*raw.Email))
+			if decoded, err := url.QueryUnescape(e); err == nil {
+				e = strings.TrimSpace(decoded)
+			}
+			email = e
 		}
 
 		// Extract domain
@@ -105,7 +110,7 @@ func (s *LeadService) ProcessBatch(ctx context.Context, jobID string, rawLeads [
 			EmailDisposable:  emailDisposable,
 			EmailConfidence:  emailConf,
 			City:             raw.City,
-			Country:          raw.Country,
+			Country:          detectCountry(raw.Country, phone),
 			Source:           []string{raw.Source},
 			LeadScore:        score,
 			TechStack:        raw.TechStack,
@@ -158,4 +163,27 @@ func (s *LeadService) ProcessBatch(ctx context.Context, jobID string, rawLeads [
 		Merged:   merged,
 		Skipped:  skipped,
 	}
+}
+
+// detectCountry returns the country from raw data, falling back to phone prefix detection.
+func detectCountry(raw string, phone string) string {
+	if raw != "" {
+		return raw
+	}
+	if strings.HasPrefix(phone, "+91") {
+		return "IN"
+	}
+	if strings.HasPrefix(phone, "+1") {
+		return "US"
+	}
+	if strings.HasPrefix(phone, "+44") {
+		return "GB"
+	}
+	if strings.HasPrefix(phone, "+61") {
+		return "AU"
+	}
+	if strings.HasPrefix(phone, "+65") {
+		return "SG"
+	}
+	return ""
 }
