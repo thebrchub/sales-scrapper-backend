@@ -1,0 +1,118 @@
+package main
+
+import (
+	"context"
+	"embed"
+	"fmt"
+	"log"
+	"log/slog"
+	"net/http"
+	"os"
+	"time"
+
+	"github.com/shivanand-burli/go-starter-kit/cron"
+	"github.com/shivanand-burli/go-starter-kit/helper"
+	"github.com/shivanand-burli/go-starter-kit/jwt"
+	"github.com/shivanand-burli/go-starter-kit/postgress"
+	"github.com/shivanand-burli/go-starter-kit/redis"
+
+	"sales-scrapper-backend/api/config"
+	apicron "sales-scrapper-backend/api/cron"
+	"sales-scrapper-backend/api/handler"
+	"sales-scrapper-backend/api/repository"
+	"sales-scrapper-backend/api/router"
+	"sales-scrapper-backend/api/service"
+)
+
+//go:embed database/migrations/*.sql
+var migrationFS embed.FS
+
+// logWriter prepends a log4j2-style timestamp to every log line.
+type logWriter struct{}
+
+func (lw *logWriter) Write(p []byte) (int, error) {
+	ts := time.Now().Format("2006-01-02 15:04:05")
+	return fmt.Fprintf(os.Stderr, "%s %s", ts, p)
+}
+
+func main() {
+	log.SetFlags(0)
+	log.SetOutput(&logWriter{})
+
+	// slog at WARN level — middleware.Logger only outputs 4xx/5xx (failure-only)
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+		Level: slog.LevelWarn,
+	})))
+
+	cfg := config.Load()
+	ctx := context.Background()
+
+	if cfg.ServicePass == "" || cfg.AdminPass == "" {
+		log.Fatal("ERROR [api] - SERVICE_PASS and ADMIN_PASS must be set")
+	}
+
+	helper.TuneMemory(cfg.MemoryLimitMB)
+
+	// Init Postgres
+	postgress.Init(cfg.DBUrl, cfg.DBTimeout)
+	postgress.MigrateFS(ctx, migrationFS, "database/migrations")
+
+	// Init Redis
+	redis.InitCache(cfg.RedisName, cfg.RedisHost, cfg.RedisPort)
+
+	// Init JWT
+	if err := jwt.Init(); err != nil {
+		log.Fatalf("ERROR [api] - jwt init failed error=%s", err)
+	}
+
+	// Repositories
+	leadRepo := repository.NewLeadRepo(cfg.CacheLeadTTL, cfg.CacheFilterTTL)
+	campaignRepo := repository.NewCampaignRepo(cfg.CacheCampaignTTL, cfg.CacheFilterTTL)
+	jobRepo := repository.NewJobRepo()
+
+	// Services
+	leadSvc := service.NewLeadService(leadRepo, campaignRepo)
+	campaignSvc := service.NewCampaignService(campaignRepo, jobRepo, cfg)
+
+	// Handlers
+	authH := handler.NewAuthHandler(cfg.ServiceUser, cfg.ServicePass, cfg.AdminUser, cfg.AdminPass)
+	leadH := handler.NewLeadHandler(leadRepo)
+	campaignH := handler.NewCampaignHandler(campaignSvc)
+	internalH := handler.NewInternalHandler(leadSvc, jobRepo, campaignRepo)
+	exportH := handler.NewExportHandler(leadRepo, cfg.ExportMaxRows)
+	progressH := handler.NewProgressHandler()
+
+	// Router
+	mux, limiter := router.New(cfg, authH, leadH, campaignH, internalH, exportH, progressH)
+
+	// Cron scheduler
+	watchdog := apicron.NewWatchdog(jobRepo, cfg)
+	rescrape := apicron.NewRescrape(campaignRepo, jobRepo, cfg)
+	emailVal := apicron.NewEmailValidator()
+
+	scheduler := cron.NewScheduler(cron.Config{})
+	scheduler.Register("watchdog", time.Duration(cfg.WatchdogIntervalSec)*time.Second, func(ctx context.Context) {
+		watchdog.Run(ctx)
+	})
+	scheduler.Register("rescrape", 24*time.Hour, func(ctx context.Context) {
+		rescrape.Run(ctx)
+	})
+	scheduler.Register("email_validator", 5*time.Minute, func(ctx context.Context) {
+		emailVal.Run(ctx)
+	})
+	scheduler.Start()
+
+	// HTTP server
+	srv := &http.Server{
+		Addr:    cfg.Host + ":" + cfg.Port,
+		Handler: mux,
+	}
+
+	log.Printf("INFO  [api] - starting server addr=%s", srv.Addr)
+	helper.ListenAndServe(srv, time.Duration(cfg.ShutdownTimeout)*time.Second, func() {
+		scheduler.Stop()
+		limiter.Close()
+		postgress.Close()
+		redis.Close()
+	})
+}

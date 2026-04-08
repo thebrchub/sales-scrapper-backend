@@ -1,0 +1,26 @@
+# Environment
+.env
+.env.*
+
+# Go
+api/tmp/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Node.js
+node_modules/
+dist/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

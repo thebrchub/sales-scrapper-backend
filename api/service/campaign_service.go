@@ -1,0 +1,96 @@
+package service
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+
+	"github.com/shivanand-burli/go-starter-kit/redis"
+
+	"sales-scrapper-backend/api/config"
+	"sales-scrapper-backend/api/models"
+	"sales-scrapper-backend/api/repository"
+)
+
+type CampaignService struct {
+	campaignRepo *repository.CampaignRepo
+	jobRepo      *repository.JobRepo
+	cfg          config.Config
+}
+
+func NewCampaignService(campaignRepo *repository.CampaignRepo, jobRepo *repository.JobRepo, cfg config.Config) *CampaignService {
+	return &CampaignService{
+		campaignRepo: campaignRepo,
+		jobRepo:      jobRepo,
+		cfg:          cfg,
+	}
+}
+
+// Create inserts a campaign, generates one job per source×city×category combination,
+// and enqueues all jobs to the scrape queue.
+func (s *CampaignService) Create(ctx context.Context, c models.Campaign) (*models.Campaign, error) {
+	c.Status = "active"
+	var jobs []models.ScrapeJob
+
+	for _, source := range c.Sources {
+		for _, city := range c.Cities {
+			for _, category := range c.Categories {
+				jobs = append(jobs, models.ScrapeJob{
+					Source:         source,
+					City:           city,
+					Category:       category,
+					Status:         "pending",
+					MaxAttempts:    s.cfg.WatchdogMaxAttempts,
+					TimeoutSeconds: s.cfg.WatchdogStaleThresholdSec,
+				})
+			}
+		}
+	}
+
+	c.JobsTotal = len(jobs)
+	campaignID, err := s.campaignRepo.Insert(ctx, c)
+	if err != nil {
+		return nil, err
+	}
+	id, ok := campaignID.(string)
+	if !ok {
+		return nil, fmt.Errorf("unexpected campaign ID type: %T", campaignID)
+	}
+	c.ID = id
+
+	for i := range jobs {
+		jobs[i].CampaignID = c.ID
+	}
+
+	_, err = s.jobRepo.InsertBatch(ctx, jobs)
+	if err != nil {
+		return nil, err
+	}
+
+	// Enqueue jobs to Redis for Node.js scraper to pick up
+	queuePayloads := make([]string, len(jobs))
+	for i, j := range jobs {
+		b, err := json.Marshal(map[string]string{
+			"campaign_id": c.ID,
+			"job_id":      j.ID,
+			"source":      j.Source,
+			"city":        j.City,
+			"category":    j.Category,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("marshal job payload: %w", err)
+		}
+		queuePayloads[i] = string(b)
+	}
+	err = redis.EnqueueBatch(ctx, "scrape_queue", queuePayloads, true)
+	if err != nil {
+		return nil, err
+	}
+
+	return &c, nil
+}
+
+// GetStatus returns the campaign with its current job progress.
+func (s *CampaignService) GetStatus(ctx context.Context, id string) (*models.Campaign, error) {
+	return s.campaignRepo.GetByID(ctx, id)
+}

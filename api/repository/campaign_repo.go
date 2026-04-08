@@ -1,0 +1,122 @@
+package repository
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/shivanand-burli/go-starter-kit/postgress"
+	"github.com/shivanand-burli/go-starter-kit/redis"
+
+	"sales-scrapper-backend/api/models"
+)
+
+type CampaignRepo struct {
+	campaignTTL time.Duration
+	listTTL     time.Duration
+}
+
+func NewCampaignRepo(campaignTTL, listTTL time.Duration) *CampaignRepo {
+	return &CampaignRepo{campaignTTL: campaignTTL, listTTL: listTTL}
+}
+
+func (r *CampaignRepo) Insert(ctx context.Context, c models.Campaign) (any, error) {
+	id, err := postgress.Insert(ctx, "campaigns", c)
+	if err == nil {
+		redis.Remove(ctx, "campaigns:list:version")
+	}
+	return id, err
+}
+
+func (r *CampaignRepo) GetByID(ctx context.Context, id string) (*models.Campaign, error) {
+	camp, err := redis.Fetch(ctx, "campaign:"+id, r.campaignTTL, func(ctx context.Context) (*models.Campaign, error) {
+		var c models.Campaign
+		found, err := postgress.Get(ctx, "campaigns", id, &c)
+		if err != nil {
+			return nil, err
+		}
+		if !found {
+			return nil, nil
+		}
+		return &c, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return camp, nil
+}
+
+func (r *CampaignRepo) GetAll(ctx context.Context, page, pageSize int) ([]models.Campaign, int, error) {
+	cacheKey := fmt.Sprintf("campaigns:list:%d:%d", page, pageSize)
+
+	type listResult struct {
+		Campaigns []models.Campaign `json:"campaigns"`
+		Total     int               `json:"total"`
+	}
+
+	result, err := redis.Fetch(ctx, cacheKey, r.listTTL, func(ctx context.Context) (*listResult, error) {
+		rows, err := postgress.Query[struct {
+			Count int `db:"count"`
+		}](ctx, "SELECT COUNT(*) FROM campaigns")
+		if err != nil {
+			return nil, err
+		}
+		total := 0
+		if len(rows) > 0 {
+			total = rows[0].Count
+		}
+
+		offset := (page - 1) * pageSize
+		campaigns, err := postgress.Query[models.Campaign](ctx,
+			fmt.Sprintf("SELECT * FROM campaigns ORDER BY created_at DESC LIMIT %d OFFSET %d", pageSize, offset))
+		if err != nil {
+			return nil, err
+		}
+		return &listResult{Campaigns: campaigns, Total: total}, nil
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+	if result == nil {
+		return nil, 0, nil
+	}
+	return result.Campaigns, result.Total, nil
+}
+
+func (r *CampaignRepo) GetStatus(ctx context.Context, id string) (*models.Campaign, error) {
+	return r.GetByID(ctx, id)
+}
+
+func (r *CampaignRepo) IncrementLeads(ctx context.Context, id string, count int) error {
+	_, err := postgress.Exec(ctx, "UPDATE campaigns SET leads_found = leads_found + $1, updated_at = NOW() WHERE id = $2", count, id)
+	if err == nil {
+		redis.Remove(ctx, "campaign:"+id)
+		redis.Remove(ctx, "campaigns:list:version")
+	}
+	return err
+}
+
+func (r *CampaignRepo) IncrementJobsCompleted(ctx context.Context, id string) error {
+	_, err := postgress.Exec(ctx, "UPDATE campaigns SET jobs_completed = jobs_completed + 1, updated_at = NOW() WHERE id = $1", id)
+	if err == nil {
+		redis.Remove(ctx, "campaign:"+id)
+		redis.Remove(ctx, "campaigns:list:version")
+	}
+	return err
+}
+
+// IncrementOnJobComplete atomically increments both leads_found and jobs_completed in one query.
+func (r *CampaignRepo) IncrementOnJobComplete(ctx context.Context, id string, leadsFound int) error {
+	_, err := postgress.Exec(ctx,
+		"UPDATE campaigns SET leads_found = leads_found + $1, jobs_completed = jobs_completed + 1, updated_at = NOW() WHERE id = $2",
+		leadsFound, id)
+	if err == nil {
+		redis.Remove(ctx, "campaign:"+id)
+		redis.Remove(ctx, "campaigns:list:version")
+	}
+	return err
+}
+
+func (r *CampaignRepo) GetAutoRescrape(ctx context.Context) ([]models.Campaign, error) {
+	return postgress.Query[models.Campaign](ctx, "SELECT * FROM campaigns WHERE auto_rescrape = true AND status = 'active'")
+}

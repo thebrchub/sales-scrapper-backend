@@ -1,0 +1,23 @@
+/** RawLead — matches Go's models.RawLead exactly. Source-independent contract. */
+export interface RawLead {
+  business_name: string;
+  phone?: string | null;
+  email?: string | null;
+  website_url?: string | null;
+  address?: string | null;
+  city: string;
+  country: string;
+  category: string;
+  source: string;
+  tech_stack?: Record<string, string> | null;
+  has_ssl?: boolean | null;
+  is_mobile_friendly?: boolean | null;
+  meta?: Record<string, string> | null;
+}
+
+/** What Go API returns from POST /internal/leads/batch */
+export interface LeadBatchResponse {
+  inserted: number;
+  merged: number;
+  skipped: number;
+}
