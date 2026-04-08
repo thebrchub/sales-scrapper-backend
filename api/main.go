@@ -69,9 +69,18 @@ func main() {
 	}
 	fmt.Fprintln(os.Stderr, "=== POSTGRES OK ===")
 
-	if err := postgress.MigrateFS(ctx, migrationFS, "database/migrations"); err != nil {
-		fatal("ERROR [api] - migration failed error=%s", err)
-	}
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				fmt.Fprintf(os.Stderr, "=== MIGRATION PANIC: %v ===\n", r)
+				time.Sleep(time.Second)
+				os.Exit(1)
+			}
+		}()
+		if err := postgress.MigrateFS(ctx, migrationFS, "database/migrations"); err != nil {
+			fatal("ERROR [api] - migration failed error=%s", err)
+		}
+	}()
 	fmt.Fprintln(os.Stderr, "=== MIGRATIONS OK ===")
 
 	// Init Redis
