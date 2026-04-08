@@ -136,7 +136,7 @@ func (s *LeadService) ProcessBatch(ctx context.Context, jobID string, rawLeads [
 	}
 
 	if len(toInsert) > 0 {
-		_, err := s.leadRepo.InsertBatch(ctx, toInsert)
+		err := s.leadRepo.InsertBatch(ctx, toInsert)
 		if err != nil {
 			// Unique constraint violations from concurrent dedup race — fall back to individual inserts
 			log.Printf("WARN  [lead-service] - batch insert failed, falling back to individual inserts error=%s", err)

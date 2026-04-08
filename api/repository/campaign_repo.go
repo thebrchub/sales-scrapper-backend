@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/shivanand-burli/go-starter-kit/postgress"
 	"github.com/shivanand-burli/go-starter-kit/redis"
 
@@ -20,12 +21,16 @@ func NewCampaignRepo(campaignTTL, listTTL time.Duration) *CampaignRepo {
 	return &CampaignRepo{campaignTTL: campaignTTL, listTTL: listTTL}
 }
 
-func (r *CampaignRepo) Insert(ctx context.Context, c models.Campaign) (any, error) {
-	id, err := postgress.Insert(ctx, "campaigns", c)
+func (r *CampaignRepo) Insert(ctx context.Context, c models.Campaign) (string, error) {
+	c.ID = uuid.NewString()
+	_, err := postgress.Exec(ctx,
+		`INSERT INTO campaigns (id, name, sources, cities, categories, status, auto_rescrape, jobs_total, jobs_completed, leads_found, created_at, updated_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW(),NOW())`,
+		c.ID, c.Name, c.Sources, c.Cities, c.Categories, c.Status, c.AutoRescrape, c.JobsTotal, c.JobsCompleted, c.LeadsFound)
 	if err == nil {
 		redis.Remove(ctx, "campaigns:list:version")
 	}
-	return id, err
+	return c.ID, err
 }
 
 func (r *CampaignRepo) GetByID(ctx context.Context, id string) (*models.Campaign, error) {

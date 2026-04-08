@@ -48,13 +48,9 @@ func (s *CampaignService) Create(ctx context.Context, c models.Campaign) (*model
 	}
 
 	c.JobsTotal = len(jobs)
-	campaignID, err := s.campaignRepo.Insert(ctx, c)
+	id, err := s.campaignRepo.Insert(ctx, c)
 	if err != nil {
 		return nil, err
-	}
-	id, ok := campaignID.(string)
-	if !ok {
-		return nil, fmt.Errorf("unexpected campaign ID type: %T", campaignID)
 	}
 	c.ID = id
 
@@ -62,7 +58,7 @@ func (s *CampaignService) Create(ctx context.Context, c models.Campaign) (*model
 		jobs[i].CampaignID = c.ID
 	}
 
-	_, err = s.jobRepo.InsertBatch(ctx, jobs)
+	err = s.jobRepo.InsertBatch(ctx, jobs)
 	if err != nil {
 		return nil, err
 	}

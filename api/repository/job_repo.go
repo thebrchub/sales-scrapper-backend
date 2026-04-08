@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/shivanand-burli/go-starter-kit/postgress"
 
 	"sales-scrapper-backend/api/models"
@@ -14,8 +15,19 @@ type JobRepo struct{}
 
 func NewJobRepo() *JobRepo { return &JobRepo{} }
 
-func (r *JobRepo) InsertBatch(ctx context.Context, jobs []models.ScrapeJob) ([]int64, error) {
-	return postgress.InsertBatch(ctx, "scrape_jobs", jobs)
+func (r *JobRepo) InsertBatch(ctx context.Context, jobs []models.ScrapeJob) error {
+	for i := range jobs {
+		jobs[i].ID = uuid.NewString()
+		_, err := postgress.Exec(ctx,
+			`INSERT INTO scrape_jobs (id, campaign_id, source, city, category, status, attempt_count, max_attempts, timeout_seconds, leads_found, created_at, updated_at)
+			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW(),NOW())`,
+			jobs[i].ID, jobs[i].CampaignID, jobs[i].Source, jobs[i].City, jobs[i].Category, jobs[i].Status,
+			jobs[i].AttemptCount, jobs[i].MaxAttempts, jobs[i].TimeoutSeconds, jobs[i].LeadsFound)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *JobRepo) GetByID(ctx context.Context, id string) (*models.ScrapeJob, error) {

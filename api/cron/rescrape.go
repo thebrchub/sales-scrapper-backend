@@ -48,7 +48,7 @@ func (rs *Rescrape) Run(ctx context.Context) {
 			}
 		}
 
-		_, err := rs.jobRepo.InsertBatch(ctx, jobs)
+		err := rs.jobRepo.InsertBatch(ctx, jobs)
 		if err != nil {
 			log.Printf("ERROR [rescrape] - insert batch failed campaign_id=%s error=%s", c.ID, err)
 			continue

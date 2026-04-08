@@ -35,6 +35,13 @@ func (lw *logWriter) Write(p []byte) (int, error) {
 	return fmt.Fprintf(os.Stderr, "%s %s", ts, p)
 }
 
+// fatal logs and exits with a brief delay so Railway captures the output.
+func fatal(format string, args ...any) {
+	log.Printf(format, args...)
+	time.Sleep(500 * time.Millisecond)
+	os.Exit(1)
+}
+
 func main() {
 	fmt.Fprintln(os.Stderr, "=== API STARTING ===")
 	log.SetFlags(0)
@@ -49,27 +56,27 @@ func main() {
 	ctx := context.Background()
 
 	if cfg.ServicePass == "" || cfg.AdminPass == "" {
-		log.Fatal("ERROR [api] - SERVICE_PASS and ADMIN_PASS must be set")
+		fatal("ERROR [api] - SERVICE_PASS and ADMIN_PASS must be set")
 	}
 
 	helper.TuneMemory(cfg.MemoryLimitMB)
 
 	// Init Postgres
 	if err := postgress.Init(cfg.DBUrl, cfg.DBTimeout); err != nil {
-		log.Fatalf("ERROR [api] - postgres init failed error=%s", err)
+		fatal("ERROR [api] - postgres init failed error=%s", err)
 	}
 	if err := postgress.MigrateFS(ctx, migrationFS, "database/migrations"); err != nil {
-		log.Fatalf("ERROR [api] - migration failed error=%s", err)
+		fatal("ERROR [api] - migration failed error=%s", err)
 	}
 
 	// Init Redis
 	if err := redis.InitCache(cfg.RedisName, cfg.RedisHost, cfg.RedisPort); err != nil {
-		log.Fatalf("ERROR [api] - redis init failed error=%s", err)
+		fatal("ERROR [api] - redis init failed error=%s", err)
 	}
 
 	// Init JWT
 	if err := jwt.Init(); err != nil {
-		log.Fatalf("ERROR [api] - jwt init failed error=%s", err)
+		fatal("ERROR [api] - jwt init failed error=%s", err)
 	}
 
 	// Repositories

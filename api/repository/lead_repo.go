@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/shivanand-burli/go-starter-kit/postgress"
 	"github.com/shivanand-burli/go-starter-kit/redis"
 
@@ -21,17 +22,38 @@ func NewLeadRepo(leadTTL, filterTTL time.Duration) *LeadRepo {
 	return &LeadRepo{leadTTL: leadTTL, filterTTL: filterTTL}
 }
 
-func (r *LeadRepo) Insert(ctx context.Context, lead models.Lead) (any, error) {
-	return postgress.Insert(ctx, "leads", lead)
+func (r *LeadRepo) Insert(ctx context.Context, lead models.Lead) (string, error) {
+	lead.ID = uuid.NewString()
+	_, err := postgress.Exec(ctx, leadInsertSQL,
+		lead.ID, lead.BusinessName, lead.Category, lead.PhoneE164, lead.PhoneValid, lead.PhoneType, lead.PhoneConfidence,
+		lead.Email, lead.EmailValid, lead.EmailCatchall, lead.EmailDisposable, lead.EmailConfidence,
+		lead.WebsiteURL, lead.WebsiteDomain, lead.Address, lead.City, lead.Country, lead.Source,
+		lead.LeadScore, lead.TechStack, lead.HasSSL, lead.IsMobileFriendly, lead.Status)
+	return lead.ID, err
 }
 
-func (r *LeadRepo) InsertBatch(ctx context.Context, leads []models.Lead) ([]int64, error) {
-	ids, err := postgress.InsertBatch(ctx, "leads", leads)
-	if err == nil {
-		r.invalidateFilterCache(ctx)
+func (r *LeadRepo) InsertBatch(ctx context.Context, leads []models.Lead) error {
+	for i := range leads {
+		leads[i].ID = uuid.NewString()
+		_, err := postgress.Exec(ctx, leadInsertSQL,
+			leads[i].ID, leads[i].BusinessName, leads[i].Category, leads[i].PhoneE164, leads[i].PhoneValid, leads[i].PhoneType, leads[i].PhoneConfidence,
+			leads[i].Email, leads[i].EmailValid, leads[i].EmailCatchall, leads[i].EmailDisposable, leads[i].EmailConfidence,
+			leads[i].WebsiteURL, leads[i].WebsiteDomain, leads[i].Address, leads[i].City, leads[i].Country, leads[i].Source,
+			leads[i].LeadScore, leads[i].TechStack, leads[i].HasSSL, leads[i].IsMobileFriendly, leads[i].Status)
+		if err != nil {
+			return err
+		}
 	}
-	return ids, err
+	r.invalidateFilterCache(ctx)
+	return nil
 }
+
+const leadInsertSQL = `INSERT INTO leads (
+	id, business_name, category, phone_e164, phone_valid, phone_type, phone_confidence,
+	email, email_valid, email_catchall, email_disposable, email_confidence,
+	website_url, website_domain, address, city, country, source,
+	lead_score, tech_stack, has_ssl, is_mobile_friendly, status, created_at, updated_at
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,NOW(),NOW())`
 
 func (r *LeadRepo) GetByID(ctx context.Context, id string) (*models.Lead, error) {
 	lead, err := redis.Fetch(ctx, "lead:"+id, r.leadTTL, func(ctx context.Context) (*models.Lead, error) {
