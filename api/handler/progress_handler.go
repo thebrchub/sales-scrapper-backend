@@ -1,10 +1,11 @@
 package handler
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+
+	json "github.com/goccy/go-json"
 
 	"github.com/shivanand-burli/go-starter-kit/helper"
 	"github.com/shivanand-burli/go-starter-kit/redis"
