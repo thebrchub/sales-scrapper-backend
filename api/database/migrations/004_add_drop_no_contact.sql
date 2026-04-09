@@ -1,0 +1,1 @@
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS drop_no_contact BOOLEAN NOT NULL DEFAULT false;

@@ -91,3 +91,8 @@ func (s *CampaignService) Create(ctx context.Context, c models.Campaign) (*model
 func (s *CampaignService) GetStatus(ctx context.Context, id string) (*models.Campaign, error) {
 	return s.campaignRepo.GetByID(ctx, id)
 }
+
+// GetAll returns paginated campaigns.
+func (s *CampaignService) GetAll(ctx context.Context, page, pageSize int) ([]models.Campaign, int, error) {
+	return s.campaignRepo.GetAll(ctx, page, pageSize)
+}

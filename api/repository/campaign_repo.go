@@ -24,9 +24,9 @@ func NewCampaignRepo(campaignTTL, listTTL time.Duration) *CampaignRepo {
 func (r *CampaignRepo) Insert(ctx context.Context, c models.Campaign) (string, error) {
 	c.ID = uuid.NewString()
 	_, err := postgress.Exec(ctx,
-		`INSERT INTO campaigns (id, name, sources, cities, categories, status, auto_rescrape, jobs_total, jobs_completed, leads_found, created_at, updated_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW(),NOW())`,
-		c.ID, c.Name, c.Sources, c.Cities, c.Categories, c.Status, c.AutoRescrape, c.JobsTotal, c.JobsCompleted, c.LeadsFound)
+		`INSERT INTO campaigns (id, name, sources, cities, categories, status, auto_rescrape, drop_no_contact, jobs_total, jobs_completed, leads_found, created_at, updated_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW(),NOW())`,
+		c.ID, c.Name, c.Sources, c.Cities, c.Categories, c.Status, c.AutoRescrape, c.DropNoContact, c.JobsTotal, c.JobsCompleted, c.LeadsFound)
 	if err == nil {
 		r.invalidateListCache(ctx)
 	}

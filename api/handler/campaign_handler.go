@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/shivanand-burli/go-starter-kit/helper"
 
@@ -83,4 +84,26 @@ func (h *CampaignHandler) GetCampaignStatus(w http.ResponseWriter, r *http.Reque
 	}
 
 	helper.JSON(w, http.StatusOK, campaign)
+}
+
+// GetCampaigns handles GET /campaigns — paginated list.
+func (h *CampaignHandler) GetCampaigns(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	page, _ := strconv.Atoi(q.Get("page"))
+	if page < 1 {
+		page = 1
+	}
+	pageSize, _ := strconv.Atoi(q.Get("page_size"))
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+
+	campaigns, total, err := h.campaignSvc.GetAll(r.Context(), page, pageSize)
+	if err != nil {
+		log.Printf("ERROR [campaign] - list failed error=%s", err)
+		helper.Error(w, http.StatusInternalServerError, "failed to fetch campaigns")
+		return
+	}
+
+	helper.Paginated(w, campaigns, page, pageSize, total)
 }

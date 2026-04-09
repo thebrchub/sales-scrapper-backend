@@ -10,6 +10,7 @@ type Campaign struct {
 	Categories    []string  `db:"categories" json:"categories"`
 	Status        string    `db:"status" json:"status"`
 	AutoRescrape  bool      `db:"auto_rescrape" json:"auto_rescrape"`
+	DropNoContact bool      `db:"drop_no_contact" json:"drop_no_contact"`
 	JobsTotal     int       `db:"jobs_total" json:"jobs_total"`
 	JobsCompleted int       `db:"jobs_completed" json:"jobs_completed"`
 	LeadsFound    int       `db:"leads_found" json:"leads_found"`
