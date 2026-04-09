@@ -56,6 +56,10 @@ func (h *CampaignHandler) CreateCampaign(w http.ResponseWriter, r *http.Request)
 
 	campaign, err := h.campaignSvc.Create(r.Context(), c)
 	if err != nil {
+		if err == service.ErrDailyLimitReached {
+			helper.Error(w, http.StatusTooManyRequests, "daily campaign limit reached (5 per day)")
+			return
+		}
 		log.Printf("ERROR [campaign] - create failed error=%s", err)
 		helper.Error(w, http.StatusInternalServerError, fmt.Sprintf("create: %s", err))
 		return

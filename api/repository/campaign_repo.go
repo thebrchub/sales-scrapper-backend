@@ -126,6 +126,23 @@ func (r *CampaignRepo) GetAutoRescrape(ctx context.Context) ([]models.Campaign, 
 	return postgress.Query[models.Campaign](ctx, "SELECT * FROM campaigns WHERE auto_rescrape = true AND status = 'active'")
 }
 
+// CountTodayWithLeads returns the number of campaigns created today that have leads_found > 0
+// or are still active (not yet completed/timed out). Used to enforce daily creation limits.
+func (r *CampaignRepo) CountTodayWithLeads(ctx context.Context) (int, error) {
+	rows, err := postgress.Query[struct {
+		Count int `db:"count"`
+	}](ctx, `SELECT COUNT(*) FROM campaigns
+		WHERE created_at AT TIME ZONE 'UTC' >= (NOW() AT TIME ZONE 'UTC')::date
+		AND (leads_found > 0 OR status = 'active')`)
+	if err != nil {
+		return 0, err
+	}
+	if len(rows) == 0 {
+		return 0, nil
+	}
+	return rows[0].Count, nil
+}
+
 // invalidateListCache removes all cached campaign list pages.
 func (r *CampaignRepo) invalidateListCache(ctx context.Context) {
 	client := redis.GetRawClient()

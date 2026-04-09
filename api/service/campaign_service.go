@@ -27,9 +27,21 @@ func NewCampaignService(campaignRepo *repository.CampaignRepo, jobRepo *reposito
 	}
 }
 
+// ErrDailyLimitReached is returned when the daily campaign creation limit is exceeded.
+var ErrDailyLimitReached = fmt.Errorf("daily campaign limit reached")
+
 // Create inserts a campaign, generates one job per source×city×category combination,
 // and enqueues all jobs to the scrape queue.
 func (s *CampaignService) Create(ctx context.Context, c models.Campaign) (*models.Campaign, error) {
+	// Enforce daily campaign limit
+	count, err := s.campaignRepo.CountTodayWithLeads(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("check daily limit: %w", err)
+	}
+	if count >= s.cfg.DailyCampaignLimit {
+		return nil, ErrDailyLimitReached
+	}
+
 	c.Status = "active"
 	var jobs []models.ScrapeJob
 
