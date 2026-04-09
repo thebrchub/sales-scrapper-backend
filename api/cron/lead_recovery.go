@@ -149,8 +149,8 @@ func (lr *LeadRecovery) drainJobStatus(ctx context.Context) {
 			continue
 		}
 
-		// If job completed, increment campaign counters
-		if req.Status == "completed" {
+		// If job completed or timed out, increment campaign counters
+		if req.Status == "completed" || req.Status == "timeout" {
 			job, err := lr.jobRepo.GetByID(ctx, req.JobID)
 			if err == nil && job != nil {
 				if err := lr.campaignRepo.IncrementOnJobComplete(ctx, job.CampaignID, req.LeadsFound); err != nil {
