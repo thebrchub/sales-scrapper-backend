@@ -104,7 +104,7 @@ export class JustDialScraper extends BaseScraper {
               source: this.source,
               source_url: url,
               tech_stack: null,
-              has_ssl: item.url ? hasSSL(item.url) : null,
+              has_ssl: item.url ? await hasSSL(item.url) : null,
               is_mobile_friendly: null,
             };
 
@@ -167,7 +167,7 @@ export class JustDialScraper extends BaseScraper {
           source: this.source,
           source_url: url,
           tech_stack: null,
-          has_ssl: websiteUrl ? hasSSL(websiteUrl) : null,
+          has_ssl: null, // resolved during enrichment
           is_mobile_friendly: null,
         };
 
@@ -221,7 +221,7 @@ export class JustDialScraper extends BaseScraper {
       }
 
       lead.tech_stack = await detectTechStack(lead.website_url, signal);
-      lead.has_ssl = hasSSL(lead.website_url);
+      lead.has_ssl = await hasSSL(lead.website_url);
     } catch {
       // best-effort
     }

@@ -197,7 +197,7 @@ export class LinkedInScraper extends BaseScraper {
       }
 
       lead.tech_stack = await detectTechStack(lead.website_url, signal);
-      lead.has_ssl = hasSSL(lead.website_url);
+      lead.has_ssl = await hasSSL(lead.website_url);
     } catch {
       // best-effort
     }

@@ -118,7 +118,7 @@ export class GoogleMapsScraper extends BaseScraper {
         if (!nameEl) return;
 
         // The listing URL is the href of the link itself
-        const sourceUrl = (item as HTMLAnchorElement).href ?? null;
+        const sourceUrl = (item as HTMLAnchorElement).href || null;
 
         // Get the parent container for more info
         const container = item.closest('div[jsaction]');
@@ -157,7 +157,7 @@ export class GoogleMapsScraper extends BaseScraper {
           source,
           source_url: sourceUrl,
           tech_stack: null,
-          has_ssl: websiteUrl ? websiteUrl.startsWith("https") : null,
+          has_ssl: null, // resolved during enrichment
           is_mobile_friendly: null,
         });
       });
@@ -205,7 +205,7 @@ export class GoogleMapsScraper extends BaseScraper {
       if (techStack) {
         lead.tech_stack = techStack;
       }
-      lead.has_ssl = hasSSL(lead.website_url);
+      lead.has_ssl = await hasSSL(lead.website_url);
     } catch {
       // enrichment failure is not fatal — proceed with what we have
     }

@@ -135,7 +135,7 @@ export class CustomUrlsScraper extends BaseScraper {
       source: this.source,
       source_url: startUrl,
       tech_stack: techStack,
-      has_ssl: hasSSL(startUrl),
+      has_ssl: await hasSSL(startUrl),
       is_mobile_friendly: null,
     };
   }

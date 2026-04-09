@@ -61,7 +61,20 @@ export async function detectTechStack(
   }
 }
 
-/** Check if a URL has SSL. */
-export function hasSSL(url: string): boolean {
-  return url.startsWith("https://");
+/** Check if a URL has SSL by probing the HTTPS version. */
+export async function hasSSL(url: string): Promise<boolean> {
+  if (url.startsWith("https://")) return true;
+
+  // If the URL is http://, try the https:// equivalent
+  const httpsUrl = url.replace(/^http:\/\//, "https://");
+  try {
+    await axios.head(httpsUrl, {
+      timeout: 5_000,
+      headers: { "User-Agent": randomUserAgent() },
+      maxRedirects: 3,
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }

@@ -83,7 +83,7 @@ export class YelpScraper extends BaseScraper {
           source: this.source,
           source_url: listingUrl,
           tech_stack: null,
-          has_ssl: websiteUrl ? hasSSL(websiteUrl) : null,
+          has_ssl: null, // resolved during enrichment
           is_mobile_friendly: null,
         };
 
@@ -130,7 +130,7 @@ export class YelpScraper extends BaseScraper {
       }
 
       lead.tech_stack = await detectTechStack(lead.website_url, signal);
-      lead.has_ssl = hasSSL(lead.website_url);
+      lead.has_ssl = await hasSSL(lead.website_url);
     } catch {
       // enrichment is best-effort
     }

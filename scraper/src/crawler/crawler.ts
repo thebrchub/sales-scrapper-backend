@@ -241,7 +241,7 @@ export class WebCrawlerScraper extends BaseScraper {
       category: job.category,
       source: this.source,
       tech_stack: techStack,
-      has_ssl: hasSSL(startUrl),
+      has_ssl: await hasSSL(startUrl),
       is_mobile_friendly: null,
     };
   }
